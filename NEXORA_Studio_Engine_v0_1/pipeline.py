@@ -17,7 +17,7 @@ import soundfile as sf
 from scene_renderer import render_scene
 from scene_director import make_director
 
-W, H, FPS = 1920, 1080, 30
+W, H, FPS = 1280, 720, 10
 ROOT = Path(__file__).resolve().parent
 
 
@@ -82,8 +82,8 @@ def render_visual(duration, events, out):
             key = _scene_key(scene, e)
             if key not in cache:
                 cache[key] = render_scene(scene, e, 0).convert("RGB")
-                image_path = tmp / f"scene_{len(image_paths):03d}.png"
-                cache[key].save(image_path, format="PNG", optimize=True)
+                image_path = tmp / f"scene_{len(image_paths):03d}.jpg"
+                cache[key].resize((W, H), Image.Resampling.LANCZOS).save(image_path, format="JPEG", quality=88, optimize=True)
                 image_paths[key] = image_path
 
         # Merge adjacent timeline entries that use exactly the same visual.
@@ -132,12 +132,12 @@ def render_visual(duration, events, out):
                     "-tune",
                     "stillimage",
                     "-crf",
-                    "23",
+                    "28",
                     "-pix_fmt",
                     "yuv420p",
                     str(seg),
                 ],
-                timeout=180,
+                timeout=45,
             )
             segment_paths.append(seg)
 
@@ -165,7 +165,7 @@ def render_visual(duration, events, out):
                 "+faststart",
                 str(visual),
             ],
-            timeout=180,
+            timeout=90,
         )
 
         return tmp, visual
