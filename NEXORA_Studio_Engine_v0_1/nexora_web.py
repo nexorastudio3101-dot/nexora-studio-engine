@@ -37,7 +37,7 @@ def run_pipeline(audio,script,out):
   STATE.update(status='Aligning audio…',progress=.10,stage='Reading narration and matching words to the script',error='',output='')
   aligner=engine_file('alignment_adapter.py'); director=engine_file('scene_director.py'); pipeline=engine_file('pipeline.py')
   stamp=int(time.time()); alignment=PROJECTS/f'{audio.stem}_{stamp}_alignment.json'; directed=PROJECTS/f'{audio.stem}_{stamp}_directed.json'
-  r=run_cmd([str(PYTHON),str(aligner),'--audio',str(audio),'--script',str(script),'--output',str(alignment),'--model','base'],timeout=1800)
+  r=run_cmd([str(PYTHON),str(aligner),'--audio',str(audio),'--script',str(script),'--output',str(alignment),'--model','tiny'],timeout=1800)
   if r.returncode: raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'Automatic alignment failed.')
   STATE.update(status='Directing scenes…',progress=.32,stage='Building the visual plan from the aligned narration')
   r=run_cmd([str(PYTHON),str(director),'--alignment',str(alignment),'--script',str(script),'--output',str(directed)],timeout=120)
