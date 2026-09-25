@@ -17,7 +17,7 @@ import soundfile as sf
 from scene_renderer import render_scene
 from scene_director import make_director
 
-W, H, FPS = 1280, 720, 10
+W, H, FPS = 854, 480, 2
 ROOT = Path(__file__).resolve().parent
 
 
@@ -83,7 +83,7 @@ def render_visual(duration, events, out):
             if key not in cache:
                 cache[key] = render_scene(scene, e, 0).convert("RGB")
                 image_path = tmp / f"scene_{len(image_paths):03d}.jpg"
-                cache[key].resize((W, H), Image.Resampling.LANCZOS).save(image_path, format="JPEG", quality=88, optimize=True)
+                cache[key].resize((W, H), Image.Resampling.LANCZOS).save(image_path, format="JPEG", quality=75, optimize=True)
                 image_paths[key] = image_path
 
         # Merge adjacent timeline entries that use exactly the same visual.
@@ -132,12 +132,12 @@ def render_visual(duration, events, out):
                     "-tune",
                     "stillimage",
                     "-crf",
-                    "28",
+                    "30",
                     "-pix_fmt",
                     "yuv420p",
                     str(seg),
                 ],
-                timeout=45,
+                timeout=30,
             )
             segment_paths.append(seg)
 
@@ -165,7 +165,7 @@ def render_visual(duration, events, out):
                 "+faststart",
                 str(visual),
             ],
-            timeout=90,
+            timeout=60,
         )
 
         return tmp, visual
@@ -175,13 +175,10 @@ def render_visual(duration, events, out):
 
 
 def make_sfx(duration, events, path):
+    import numpy as np
     sr = 48000
     n = int(duration * sr)
-    y = [0.0] * n
-
-    # Tiny deterministic SFX layer. Keep it lightweight for cloud execution.
-    import math
-
+    y = np.zeros(n, dtype=np.float32)
     for e in events:
         if not e.get("active"):
             continue
@@ -189,17 +186,13 @@ def make_sfx(duration, events, path):
         length = min(int(0.18 * sr), n - idx)
         if length <= 0:
             continue
-        for j in range(length):
-            u = j / sr
-            y[idx + j] += (
-                0.045 * math.sin(2 * math.pi * 880 * u)
-                + 0.018 * math.sin(2 * math.pi * 1174 * u)
-            ) * math.exp(-24 * u)
-
-    # soundfile accepts a list for mono PCM.
-    import numpy as np
-    sf.write(path, np.asarray(y, dtype=np.float32), sr, subtype="PCM_16")
-
+        u = np.arange(length, dtype=np.float32) / sr
+        tone = (
+            0.045 * np.sin(2 * np.pi * 880 * u)
+            + 0.018 * np.sin(2 * np.pi * 1174 * u)
+        ) * np.exp(-24 * u)
+        y[idx:idx + length] += tone
+    sf.write(path, y, sr, subtype="PCM_16")
 
 def main():
     ap = argparse.ArgumentParser()
@@ -272,40 +265,24 @@ def main():
         )
 
         mix = tmp / "mix.m4a"
-        fc = (
-            "[0:a]loudnorm=I=-11:TP=-1.2:LRA=7,"
-            "acompressor=threshold=-22dB:ratio=3:attack=5:release=80:makeup=5,"
-            "alimiter=limit=0.92[v];"
-            "[1:a]volume=0.70[m];"
-            "[2:a]volume=0.55[s];"
-            "[v][m][s]amix=inputs=3:duration=first:normalize=0,"
-            "alimiter=limit=0.95[a]"
-        )
+        fc = "[0:a]volume=0.92[v];[1:a]volume=0.18[m];[2:a]volume=0.20[s];[v][m][s]amix=inputs=3:duration=first:normalize=0,alimiter=limit=0.95[a]"
         run(
             [
                 FFMPEG,
                 "-y",
                 "-loglevel",
                 "error",
-                "-i",
-                str(audio),
-                "-i",
-                str(music),
-                "-i",
-                str(sfx),
-                "-filter_complex",
-                fc,
-                "-t",
-                str(video_duration),
-                "-map",
-                "[a]",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "256k",
+                "-i", str(audio),
+                "-i", str(music),
+                "-i", str(sfx),
+                "-filter_complex", fc,
+                "-t", str(video_duration),
+                "-map", "[a]",
+                "-c:a", "aac",
+                "-b:a", "128k",
                 str(mix),
             ],
-            timeout=600,
+            timeout=300,
         )
 
         out.parent.mkdir(parents=True, exist_ok=True)
