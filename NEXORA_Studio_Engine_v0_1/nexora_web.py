@@ -20,7 +20,7 @@ def page():
  if st['error']: msg='<div class="error">'+html.escape(st['error'])+'</div>'
  elif st['output']: msg='<div class="success">✓ Video ready — <a href="/download">Download MP4</a></div>'
  h=HTML_HEAD.replace('VAR_PROGRESS',str(int(st['progress']*100)))
- body='''<body><main class="wrap"><div class="brand">NEXORA STUDIO ENGINE</div><div class="tag">SMARTER TODAY. BRIGHTER TOMORROW.</div><div class="modes"><div class="mode active">ACADEMY</div><div class="mode">YOUTUBE</div><div class="mode">SHORTS</div></div><form method="post" enctype="multipart/form-data" action="/generate"><div class="card"><div class="title">VOICE / AUDIO</div><div class="hint">Select your narration audio</div><input name="audio" type="file" accept="audio/*" required></div><div class="card"><div class="title">SCRIPT</div><div class="hint">Paste the narration directly — no .txt file needed</div><textarea name="script" required placeholder="Paste your full narration here..."></textarea></div><button type="submit" DISABLED>✨ &nbsp; GENERATE ACADEMY VIDEO</button></form><div class="status">STATUS</div><div class="sub">STAGE</div><div class="bar"><div class="fill"></div></div>MSG<div class="foot">ACADEMY • 16:9 • NEXORA VISUAL SYSTEM</div></main><script>setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{if(s.status!=='Ready'||s.output||s.error) location.reload()}),1200)</script></body></html>'''
+ body='''<body><main class="wrap"><div class="brand">NEXORA STUDIO ENGINE</div><div class="tag">SMARTER TODAY. BRIGHTER TOMORROW.</div><div class="modes"><div class="mode active">ACADEMY</div><div class="mode">YOUTUBE</div><div class="mode">SHORTS</div></div><form method="post" enctype="multipart/form-data" action="/generate"><div class="card"><div class="title">VOICE / AUDIO</div><div class="hint">Select your narration audio</div><input name="audio" type="file" accept="audio/*" required></div><div class="card"><div class="title">SCRIPT</div><div class="hint">Paste the narration directly — no .txt file needed</div><textarea name="script" required placeholder="Paste your full narration here..."></textarea></div><button type="submit" DISABLED>✨ &nbsp; GENERATE ACADEMY VIDEO</button></form><div class="status">STATUS</div><div class="sub">STAGE</div><div class="bar"><div class="fill"></div></div>MSG<div class="foot">ACADEMY • 16:9 • NEXORA VISUAL SYSTEM • CLOUD BUILD 0abfd8e</div></main><script>setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{if(s.status!=='Ready'||s.output||s.error) location.reload()}),1200)</script></body></html>'''
  body=body.replace('DISABLED','disabled' if disabled else '').replace('STATUS',html.escape(st['status'])).replace('STAGE',html.escape(st.get('stage',''))).replace('MSG',msg)
  return h+body
 def parse_multipart(rfile,length,boundary):
@@ -34,10 +34,10 @@ def parse_multipart(rfile,length,boundary):
 def run_cmd(cmd,timeout=None): return subprocess.run(cmd,capture_output=True,text=True)
 def run_pipeline(audio,script,out):
  try:
-  STATE.update(status='Aligning audio…',progress=.10,stage='Reading narration and matching words to the script',error='',output='')
+  STATE.update(status='Preparing audio…',progress=.10,stage='Reading narration and creating deterministic timings',error='',output='')
   director=engine_file('scene_director.py'); pipeline=engine_file('pipeline.py')
   stamp=int(time.time()); alignment=PROJECTS/f'{audio.stem}_{stamp}_alignment.json'; directed=PROJECTS/f'{audio.stem}_{stamp}_directed.json'
-  STATE.update(status='Preparing audio…',progress=.18,stage='Creating narration timings')
+  STATE.update(status='Preparing audio…',progress=.18,stage='Creating narration timings — no speech model required')
   r=run_cmd(['ffprobe','-v','error','-show_entries','format=duration','-of','default=nw=1:nk=1',str(audio)],timeout=30)
   if r.returncode: raise RuntimeError(r.stderr.strip() or 'Could not read audio duration.')
   try: duration=float(r.stdout.strip())
@@ -55,8 +55,8 @@ def run_pipeline(audio,script,out):
   STATE.update(status='Directing scenes…',progress=.32,stage='Building the visual plan from the aligned narration')
   r=run_cmd([str(PYTHON),str(director),'--alignment',str(alignment),'--script',str(script),'--output',str(directed)],timeout=120)
   if r.returncode: raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'Scene Director failed.')
-  STATE.update(status='Rendering visuals…',progress=.50,stage='Rendering NEXORA motion graphics')
-  r=run_cmd([str(PYTHON),str(pipeline),'--audio',str(audio),'--script',str(script),'--manifest',str(directed),'--output',str(out)],timeout=7200)
+  STATE.update(status='Rendering visuals…',progress=.50,stage='Fast static-scene renderer — encoding each visual once')
+  r=run_cmd([str(PYTHON),str(pipeline),'--audio',str(audio),'--script',str(script),'--manifest',str(directed),'--output',str(out)],timeout=1200)
   if r.returncode: raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'Renderer failed.')
   STATE.update(status='✓ Complete',progress=1.0,stage='Your video is ready',output=str(out))
  except subprocess.TimeoutExpired: STATE.update(status='⚠ Generation stopped',progress=0,error='One stage took longer than expected and was stopped safely.',stage='Try again.')
