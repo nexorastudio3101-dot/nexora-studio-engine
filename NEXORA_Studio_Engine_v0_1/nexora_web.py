@@ -3,7 +3,7 @@ import html, json, os, shutil, subprocess, sys, tempfile, threading, time, webbr
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 BASE=Path(__file__).resolve().parent
-ENGINE=BASE/'NEXORA_Studio_Engine_v0_1'
+ENGINE=BASE
 PYTHON=Path(sys.executable)
 OUTPUT=ENGINE/'output'; PROJECTS=ENGINE/'projects'
 OUTPUT.mkdir(exist_ok=True); PROJECTS.mkdir(exist_ok=True)
