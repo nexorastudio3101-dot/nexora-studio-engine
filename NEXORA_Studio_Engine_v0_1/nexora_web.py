@@ -5,6 +5,11 @@ from pathlib import Path
 BASE=Path(__file__).resolve().parent
 ENGINE=BASE
 PYTHON=Path(sys.executable)
+MODULE_DIR=BASE/'NEXORA_Studio_Engine_v0_1'
+def engine_file(name):
+    for p in (BASE/name, MODULE_DIR/name):
+        if p.exists(): return p
+    raise FileNotFoundError(f'Engine module not found: {name}')
 OUTPUT=ENGINE/'output'; PROJECTS=ENGINE/'projects'
 OUTPUT.mkdir(exist_ok=True); PROJECTS.mkdir(exist_ok=True)
 STATE={'status':'Ready','progress':0,'error':'','output':'','stage':'Ready'}
@@ -30,7 +35,7 @@ def run_cmd(cmd,timeout=None): return subprocess.run(cmd,capture_output=True,tex
 def run_pipeline(audio,script,out):
  try:
   STATE.update(status='Aligning audio…',progress=.10,stage='Reading narration and matching words to the script',error='',output='')
-  aligner=ENGINE/'alignment_adapter.py'; director=ENGINE/'scene_director.py'; pipeline=ENGINE/'pipeline.py'
+  aligner=engine_file('alignment_adapter.py'); director=engine_file('scene_director.py'); pipeline=engine_file('pipeline.py')
   stamp=int(time.time()); alignment=PROJECTS/f'{audio.stem}_{stamp}_alignment.json'; directed=PROJECTS/f'{audio.stem}_{stamp}_directed.json'
   r=run_cmd([str(PYTHON),str(aligner),'--audio',str(audio),'--script',str(script),'--output',str(alignment),'--model','base'],timeout=1800)
   if r.returncode: raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'Automatic alignment failed.')
