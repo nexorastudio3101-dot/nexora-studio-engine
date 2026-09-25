@@ -1,0 +1,9 @@
+.venv
+__pycache__
+*.pyc
+output/
+projects/
+*.mp4
+*.m4a
+*.flac
+*.zip
