@@ -35,10 +35,23 @@ def run_cmd(cmd,timeout=None): return subprocess.run(cmd,capture_output=True,tex
 def run_pipeline(audio,script,out):
  try:
   STATE.update(status='Aligning audio…',progress=.10,stage='Reading narration and matching words to the script',error='',output='')
-  aligner=engine_file('alignment_adapter.py'); director=engine_file('scene_director.py'); pipeline=engine_file('pipeline.py')
+  director=engine_file('scene_director.py'); pipeline=engine_file('pipeline.py')
   stamp=int(time.time()); alignment=PROJECTS/f'{audio.stem}_{stamp}_alignment.json'; directed=PROJECTS/f'{audio.stem}_{stamp}_directed.json'
-  r=run_cmd([str(PYTHON),str(aligner),'--audio',str(audio),'--script',str(script),'--output',str(alignment),'--model','tiny'],timeout=1800)
-  if r.returncode: raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'Automatic alignment failed.')
+  STATE.update(status='Preparing audio…',progress=.18,stage='Creating narration timings')
+  r=run_cmd(['ffprobe','-v','error','-show_entries','format=duration','-of','default=nw=1:nk=1',str(audio)],timeout=30)
+  if r.returncode: raise RuntimeError(r.stderr.strip() or 'Could not read audio duration.')
+  try: duration=float(r.stdout.strip())
+  except ValueError: raise RuntimeError('Could not read audio duration.')
+  import re as _re
+  tokens=_re.findall(r'\S+',script.read_text(encoding='utf-8'))
+  if not tokens: raise RuntimeError('Script is empty.')
+  step=duration/len(tokens); words=[]
+  for i,w in enumerate(tokens):
+   words.append({'word':w,'start':round(i*step,3),'end':round(duration if i==len(tokens)-1 else (i+1)*step,3)})
+  segments=[]; chunk=max(1,len(words)//12)
+  for i in range(0,len(words),chunk):
+   part=words[i:i+chunk]; segments.append({'start':part[0]['start'],'end':part[-1]['end'],'text':' '.join(x['word'] for x in part)})
+  alignment.write_text(json.dumps({'version':2,'provider':'deterministic-script-timing','duration':duration,'segments':segments,'words':words,'events':[]},indent=2),encoding='utf-8')
   STATE.update(status='Directing scenes…',progress=.32,stage='Building the visual plan from the aligned narration')
   r=run_cmd([str(PYTHON),str(director),'--alignment',str(alignment),'--script',str(script),'--output',str(directed)],timeout=120)
   if r.returncode: raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'Scene Director failed.')
