@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+import numpy as np
 
 FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 BOLD="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -23,15 +24,16 @@ def seed_for(event):
 
 
 def gradient(w,h,seed):
-    im=Image.new("RGB",(w,h))
-    px=im.load()
-    a=seed%360
-    for y in range(h):
-        for x in range(w):
-            r=x/w; g=y/h
-            glow=max(0,1-math.hypot(r-.72,g-.18)*1.5)
-            px[x,y]=(int(7+9*glow),int(11+18*glow),int(14+24*glow))
-    return im
+    # Vectorized gradient: fast enough for cloud rendering without a GPU.
+    yy,xx=np.mgrid[0:h,0:w]
+    rx=xx.astype(np.float32)/w
+    ry=yy.astype(np.float32)/h
+    glow=np.clip(1.0-np.sqrt((rx-.72)**2+(ry-.18)**2)*1.5,0,1)
+    arr=np.zeros((h,w,3),dtype=np.uint8)
+    arr[:,:,0]=(7+9*glow).astype(np.uint8)
+    arr[:,:,1]=(11+18*glow).astype(np.uint8)
+    arr[:,:,2]=(14+24*glow).astype(np.uint8)
+    return Image.fromarray(arr,"RGB")
 
 
 def glow_dot(im,x,y,r,color,alpha=120):
