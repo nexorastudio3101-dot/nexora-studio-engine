@@ -41,73 +41,38 @@ def _escape_filter(value: str) -> str:
     return value.replace("\\", "\\\\").replace(":", "\\:")
 
 
-def render_ai_visual(events, out_dir, visual_out):
-    from ai_visual_engine import build_ai_assets
+def render_cinematic_visual(events, out_dir, visual_out):
+    from cinematic_visual_engine import render_cinematic_frame
 
-    assets_dir = out_dir / "ai_assets"
-
-    def progress(index, total, message):
-        print(f"[AI] {message}", flush=True)
-
-    assets = build_ai_assets(events, assets_dir, progress)
+    assets_dir = out_dir / "cinematic_assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
     segments = []
 
-    for i, asset in enumerate(assets):
+    for i, asset in enumerate(events):
         start = float(asset["start"])
         end = float(asset["end"])
         seg_duration = max(0.25, end - start)
-        seg = out_dir / f"ai_segment_{i:02d}.mp4"
-
-        label = _escape_filter(asset.get("label", "NEXORA"))
-        narration = asset.get("narration", "")
-        # Keep the on-screen copy short. The narration remains the primary
-        # information channel; generated imagery carries the meaning.
-        title = asset.get("label", "NEXORA")
-        title = _escape_filter(title[:24])
-
-        if asset["asset_type"] == "video":
-            source = asset["video_path"]
-            vf = (
-                f"scale={W}:{H}:force_original_aspect_ratio=increase,"
-                f"crop={W}:{H},"
-                f"fade=t=in:st=0:d=0.25,"
-                f"fade=t=out:st={max(0, seg_duration - 0.25):.3f}:d=0.25,"
-                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{title}':x=80:y=65:fontsize=22:fontcolor=white:"
-                f"alpha=0.78"
-            )
-            cmd = [
-                FFMPEG, "-y", "-loglevel", "error",
-                "-stream_loop", "-1", "-i", source,
-                "-t", f"{seg_duration:.3f}",
-                "-vf", vf, "-r", str(FPS),
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-                "-pix_fmt", "yuv420p", str(seg),
-            ]
-        else:
-            source = asset["image_path"]
-            frames = max(24, int(round(seg_duration * FPS)))
-            vf = (
-                f"scale={W}:{H}:force_original_aspect_ratio=increase,"
-                f"crop={W}:{H},"
-                f"zoompan=z='min(zoom+0.0008,1.08)':d={frames}:"
-                f"s={W}x{H}:fps={FPS},"
-                f"fade=t=in:st=0:d=0.25,"
-                f"fade=t=out:st={max(0, seg_duration - 0.25):.3f}:d=0.25,"
-                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{title}':x=80:y=65:fontsize=22:fontcolor=white:"
-                f"alpha=0.78"
-            )
-            cmd = [
-                FFMPEG, "-y", "-loglevel", "error",
-                "-loop", "1", "-i", source,
-                "-t", f"{seg_duration:.3f}",
-                "-vf", vf, "-r", str(FPS),
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-                "-pix_fmt", "yuv420p", str(seg),
-            ]
-
-        run(cmd, timeout=max(90, int(seg_duration * 12)))
+        seg = out_dir / f"cinematic_segment_{i:02d}.mp4"
+        image_path = assets_dir / f"scene_{i:03d}.png"
+        render_cinematic_frame(asset, image_path, W, H)
+        title = _escape_filter(asset.get("label", "NEXORA")[:24])
+        frames = max(24, int(round(seg_duration * FPS)))
+        vf = (
+            f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+            f"crop={W}:{H},"
+            f"zoompan=z='min(zoom+0.0007,1.055)':d={frames}:s={W}x{H}:fps={FPS},"
+            f"fade=t=in:st=0:d=0.35,"
+            f"fade=t=out:st={max(0, seg_duration-0.35):.3f}:d=0.35,"
+            f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{title}':x=80:y=65:fontsize=22:fontcolor=white:alpha=0.72"
+        )
+        cmd = [
+            FFMPEG,"-y","-loglevel","error","-loop","1","-i",str(image_path),
+            "-t",f"{seg_duration:.3f}","-vf",vf,"-r",str(FPS),
+            "-c:v","libx264","-preset","veryfast","-crf","20",
+            "-pix_fmt","yuv420p",str(seg)
+        ]
+        run(cmd, timeout=max(90, int(seg_duration*12)))
         segments.append(seg)
 
     concat = out_dir / "ai_concat.txt"
@@ -263,11 +228,7 @@ def main():
 
         visual = work / "visual.mp4"
         if args.ai:
-            if not os.environ.get("RUNWAYML_API_SECRET"):
-                raise RuntimeError(
-                    "AI mode is selected, but RUNWAYML_API_SECRET is not configured in Render."
-                )
-            render_ai_visual(events, work, visual)
+            render_cinematic_visual(events, work, visual)
         else:
             render_static_visual(events, visual)
 
