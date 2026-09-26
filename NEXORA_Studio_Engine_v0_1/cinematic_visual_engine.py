@@ -7,24 +7,24 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import numpy as np
 
-FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-BOLD="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 LIME=(190,242,58)
 WHITE=(242,246,245)
-MUTED=(145,158,160)
+MUTED=(130,145,148)
 BG=(7,11,14)
 
-
 def font(size,bold=False):
-    return ImageFont.truetype(BOLD if bold else FONT,size)
-
+    name="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    return ImageFont.truetype(name,size)
 
 def seed_for(event):
-    return int(hashlib.sha256((event.get("narration","")+event.get("type","")).encode()).hexdigest()[:8],16)
-
+    base="|".join([
+        str(event.get("world","")),
+        "|".join(event.get("persistent_concepts",[])),
+        str(event.get("sequence",0)),
+    ])
+    return int(hashlib.sha256(base.encode()).hexdigest()[:8],16)
 
 def gradient(w,h,seed):
-    # Vectorized gradient: fast enough for cloud rendering without a GPU.
     yy,xx=np.mgrid[0:h,0:w]
     rx=xx.astype(np.float32)/w
     ry=yy.astype(np.float32)/h
@@ -35,90 +35,116 @@ def gradient(w,h,seed):
     arr[:,:,2]=(14+24*glow).astype(np.uint8)
     return Image.fromarray(arr,"RGB")
 
-
 def glow_dot(im,x,y,r,color,alpha=120):
     layer=Image.new("RGBA",im.size,(0,0,0,0))
     d=ImageDraw.Draw(layer)
     d.ellipse((x-r,y-r,x+r,y+r),fill=(*color,alpha))
-    layer=layer.filter(ImageFilter.GaussianBlur(max(8,r//2)))
+    layer=layer.filter(ImageFilter.GaussianBlur(max(6,r//2)))
     im.paste(layer,(0,0),layer)
 
+def node(d,im,x,y,r=42,active=False):
+    outline=LIME if active else (67,91,95)
+    fill=(20,31,34) if not active else (25,40,38)
+    d.ellipse((x-r,y-r,x+r,y+r),fill=fill,outline=outline,width=3)
+    if active:
+        glow_dot(im,x,y,int(r*.9),LIME,45)
+        d=ImageDraw.Draw(im)
+        d.ellipse((x-8,y-8,x+8,y+8),fill=LIME)
 
-def label(draw,text,x,y,size=20,color=MUTED):
-    draw.text((x,y),text.upper(),font=font(size,True),fill=color)
-
-
-def render_cinematic_frame(event,path,w=1920,h=1080):
-    kind=event.get("type","context")
+def render_cinematic_frame(event,path,w=1280,h=720):
+    kind=event.get("type","concept")
+    world=event.get("world","abstract_system")
+    seq=int(event.get("sequence",0))
+    total=max(1,int(event.get("sequence_total",1)))
     seed=seed_for(event)
     im=gradient(w,h,seed)
     d=ImageDraw.Draw(im)
-    # Editorial grid and subtle lime glow.
-    for x in range(0,w,160):
-        d.line((x,0,x,h),fill=(18,28,31),width=1)
-    for y in range(0,h,135):
-        d.line((0,y,w,y),fill=(18,28,31),width=1)
-    glow_dot(im,int(w*.78),int(h*.2),260,LIME,55)
-    glow_dot(im,int(w*.18),int(h*.82),180,(55,120,180),35)
+
+    # Clean cinematic frame: no debug labels, no scene-type captions.
+    for x in range(0,w,128):
+        d.line((x,0,x,h),fill=(17,27,30),width=1)
+    for y in range(0,h,90):
+        d.line((0,y,w,y),fill=(17,27,30),width=1)
+
+    glow_dot(im,int(w*.78),int(h*.2),180,LIME,42)
+    glow_dot(im,int(w*.16),int(h*.82),130,(55,120,180),30)
     d=ImageDraw.Draw(im)
 
-    title=event.get("label",kind).upper()
-    label(d,"NEXORA / ACADEMY",90,62,18,LIME)
-    d.line((90,104,1830,104),fill=(42,57,60),width=2)
-
-    cx,cy=w//2,h//2+45
-    if kind=="hook":
-        for rr in (280,205,130):
-            d.ellipse((cx-rr,cy-rr,cx+rr,cy+rr),outline=(70,100,105),width=2)
-        d.ellipse((cx-82,cy-82,cx+82,cy+82),fill=(24,35,37),outline=LIME,width=4)
-        d.line((cx-82,cy,cx+82,cy),fill=LIME,width=4)
-        d.line((cx,cy-82,cx,cy+82),fill=LIME,width=4)
-        for i in range(12):
-            ang=i*math.pi/6
-            x=cx+330*math.cos(ang); y=cy+230*math.sin(ang)
-            glow_dot(im,int(x),int(y),12,LIME,90)
-    elif kind=="mechanism":
-        nodes=[(420,cy),(760,cy-120),(1100,cy+120),(1500,cy)]
-        for i,(x,y) in enumerate(nodes):
-            if i:
-                px,py=nodes[i-1]; d.line((px+70,py,x-70,y),fill=(85,112,113),width=4)
-            d.ellipse((x-70,y-70,x+70,y+70),fill=(18,28,31),outline=LIME,width=4)
-            d.ellipse((x-18,y-18,x+18,y+18),fill=LIME)
-    elif kind=="contrast":
-        d.rounded_rectangle((180,250,900,830),30,fill=(17,24,28),outline=(65,80,84),width=3)
-        d.rounded_rectangle((1020,250,1740,830),30,fill=(20,31,27),outline=LIME,width=3)
-        d.line((960,300,960,780),fill=(70,85,87),width=3)
-        for y in (390,520,650):
-            d.line((300,y,780,y),fill=(65,80,84),width=10)
-            d.line((1140,y,1620,y),fill=LIME,width=10)
-        d.text((300,875),"BEFORE",font=font(22,True),fill=MUTED)
-        d.text((1140,875),"AFTER",font=font(22,True),fill=LIME)
-    elif kind=="example":
-        d.ellipse((cx-220,cy-220,cx+220,cy+220),fill=(17,27,31),outline=(70,105,110),width=3)
-        d.rectangle((cx-125,cy-55,cx+125,cy+105),fill=(26,39,42),outline=LIME,width=3)
-        d.ellipse((cx-35,cy-145,cx+35,cy-75),fill=(28,40,43),outline=WHITE,width=2)
-        for i in range(5):
-            d.line((cx+150,cy-160+i*80,cx+360,cy-160+i*80),fill=(80,104,107),width=5)
-    elif kind=="takeaway":
-        d.polygon([(cx,230),(cx+330,cy+360),(cx-330,cy+360)],fill=(18,29,31),outline=LIME)
-        d.line((cx,260,cx,cy+260),fill=LIME,width=5)
-        d.ellipse((cx-22,cy+230,cx+22,cy+274),fill=LIME)
-        for r in (420,500):
-            d.arc((cx-r,cy-r,cx+r,cy+r),205,335,fill=(60,82,85),width=3)
+    cx,cy=w//2,h//2+15
+    # The same visual world evolves from scene to scene.
+    if world in ("technology","data","abstract_system"):
+        if kind == "hook":
+            # Fragmented elements: the visual problem is established.
+            pts=[(250,250),(460,430),(680,220),(900,430),(1100,250)]
+            for x,y in pts:
+                node(d,im,x,y,38,False)
+            d.line((288,250,422,410),fill=(53,72,76),width=3)
+            d.line((498,430,642,235),fill=(53,72,76),width=3)
+            d.line((718,235,862,410),fill=(53,72,76),width=3)
+            d.line((938,410,1062,265),fill=(53,72,76),width=3)
+        elif kind in ("concept","process"):
+            # The fragments begin to organize into a system.
+            pts=[(300,300),(510,220),(510,500),(760,360),(1010,220),(1010,500)]
+            links=[(0,1),(0,3),(1,3),(2,3),(3,4),(3,5)]
+            for a,b in links:
+                x1,y1=pts[a]; x2,y2=pts[b]
+                d.line((x1,y1,x2,y2),fill=(62,87,90),width=4)
+            for j,(x,y) in enumerate(pts):
+                node(d,im,x,y,38,j==3 or j==seq%len(pts))
+        elif kind == "cause_effect":
+            pts=[(250,360),(500,260),(750,360),(1000,260)]
+            for j in range(len(pts)-1):
+                x1,y1=pts[j]; x2,y2=pts[j+1]
+                d.line((x1+45,y1,x2-45,y2),fill=LIME if j==min(seq,2) else (65,88,91),width=6)
+                d.polygon([(x2-55,y2-10),(x2-38,y2),(x2-55,y2+10)],fill=LIME if j==min(seq,2) else (65,88,91))
+            for j,(x,y) in enumerate(pts): node(d,im,x,y,44,j==min(seq,3))
+        elif kind == "contrast":
+            d.rounded_rectangle((120,180,570,570),28,fill=(16,24,27),outline=(68,82,85),width=3)
+            d.rounded_rectangle((710,180,1160,570),28,fill=(19,32,27),outline=LIME,width=3)
+            for y in (270,360,450):
+                d.line((210,y,480,y),fill=(66,82,85),width=12)
+                d.line((800,y,1070,y),fill=LIME,width=12)
+        elif kind == "example":
+            # A simple human-scale scene linked to the system.
+            d.ellipse((cx-44,cy-180,cx+44,cy-92),fill=(25,36,39),outline=WHITE,width=2)
+            d.rounded_rectangle((cx-82,cy-90,cx+82,cy+145),25,fill=(19,31,34),outline=LIME,width=3)
+            for x,y in ((260,300),(1020,300),(260,470),(1020,470)):
+                d.line((x,y,cx-100 if x<cx else cx+100, y),fill=(65,88,91),width=4)
+                node(d,im,x,y,30,True)
+        else:
+            # Resolution: the system is unified.
+            d.ellipse((cx-120,cy-120,cx+120,cy+120),fill=(21,38,34),outline=LIME,width=5)
+            for i in range(8):
+                a=i*math.pi/4
+                x=cx+280*math.cos(a); y=cy+210*math.sin(a)
+                d.line((x,y,cx+110*math.cos(a),cy+110*math.sin(a)),fill=LIME,width=5)
+                node(d,im,int(x),int(y),28,True)
+            for r in (170,220,270):
+                d.arc((cx-r,cy-r,cx+r,cy+r),210,330,fill=(58,80,83),width=3)
+    elif world=="human_system":
+        # Persistent human + surrounding system.
+        head=(cx,cy-150); body=(cx,cy+50)
+        d.ellipse((head[0]-48,head[1]-48,head[0]+48,head[1]+48),fill=(25,36,39),outline=WHITE,width=2)
+        d.rounded_rectangle((body[0]-95,body[1]-100,body[0]+95,body[1]+130),28,fill=(19,31,34),outline=LIME,width=3)
+        for a in range(6):
+            ang=a*math.pi/3
+            x=cx+330*math.cos(ang); y=cy+220*math.sin(ang)
+            node(d,im,int(x),int(y),34,a<=seq%6)
+            d.line((x,y,cx,body[1]),fill=(58,82,85),width=3)
     else:
-        # Context: connected constellation / knowledge map.
-        pts=[(430,330),(720,470),(1010,300),(1260,520),(1510,350),(880,700),(1370,760)]
-        for i,(x,y) in enumerate(pts):
-            for j in range(i):
-                x2,y2=pts[j]
-                if math.hypot(x-x2,y-y2)<500:
-                    d.line((x,y,x2,y2),fill=(44,66,70),width=3)
-            d.ellipse((x-28,y-28,x+28,y+28),fill=(17,29,32),outline=LIME,width=3)
-            glow_dot(im,x,y,35,LIME,50)
-        d=ImageDraw.Draw(im)
+        # Abstract system: a coherent transformation across scenes.
+        progress=seq/max(1,total-1)
+        r=90+int(180*progress)
+        d.ellipse((cx-r,cy-r,cx+r,cy+r),outline=LIME,width=5)
+        for i in range(12):
+            a=i*math.pi/6+progress
+            x=cx+(r+80)*math.cos(a); y=cy+(r+55)*math.sin(a)
+            node(d,im,int(x),int(y),24,i<=int(progress*11))
+            d.line((x,y,cx+r*math.cos(a),cy+r*math.sin(a)),fill=(58,82,85),width=3)
 
-    # A small semantic caption is deliberately derived from the scene type,
-    # not the full narration, keeping the frame readable and premium.
-    d.text((90,h-110),title,font=font(24,True),fill=WHITE)
-    d.text((90,h-72),"NEXORA CINEMATIC VISUAL SYSTEM",font=font(15),fill=MUTED)
-    path=Path(path); path.parent.mkdir(parents=True,exist_ok=True); im.save(path,"PNG")
+    # Minimal brand mark only; no debug metadata or scene labels.
+    d.text((42,34),"NEXORA",font=font(18,True),fill=LIME)
+
+    path=Path(path)
+    path.parent.mkdir(parents=True,exist_ok=True)
+    im.save(path,"PNG")
