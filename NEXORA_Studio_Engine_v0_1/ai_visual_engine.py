@@ -154,7 +154,7 @@ def build_ai_assets(
                 image_url,
                 event["motion_prompt"],
                 video_path,
-                duration=min(5, max(3, int(round(event["end"] - event["start"])))),
+                duration=5,
             )
             item["asset_type"] = "video"
             item["video_path"] = str(video_path)
