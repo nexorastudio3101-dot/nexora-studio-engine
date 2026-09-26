@@ -41,17 +41,28 @@ Scene description:
 Continuity requirement:
 {continuity}
 """
-    response=client.models.generate_content(
-        model=MODEL,
-        contents=full_prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
-            response_format={"image":{"aspect_ratio":"16:9","image_size":"1K"}},
-        ),
-    )
-    for part in response.parts:
-        if getattr(part,"inline_data",None) is not None:
-            data=part.inline_data.data
-            output.write_bytes(data if isinstance(data,bytes) else base64.b64decode(data))
-            return output
-    raise RuntimeError("The image model returned no image data.")
+    last_error=None
+    for attempt in range(4):
+        try:
+            response=client.models.generate_content(
+                model=MODEL,
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    response_format={"image":{"aspect_ratio":"16:9","image_size":"1K"}},
+                ),
+            )
+            for part in response.parts:
+                if getattr(part,"inline_data",None) is not None:
+                    data=part.inline_data.data
+                    output.write_bytes(data if isinstance(data,bytes) else base64.b64decode(data))
+                    return output
+            raise RuntimeError("The image model returned no image data.")
+        except Exception as exc:
+            last_error=exc
+            message=str(exc).upper()
+            transient=("503" in message or "UNAVAILABLE" in message or "SERVICE UNAVAILABLE" in message)
+            if not transient or attempt==3:
+                raise
+            time.sleep(2 ** attempt)
+    raise RuntimeError(f"Image generation failed: {last_error}")
