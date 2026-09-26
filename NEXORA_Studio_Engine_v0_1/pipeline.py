@@ -45,17 +45,17 @@ def render_cinematic_visual(events, out_dir, visual_out):
         # Generate one polished keyframe per directed scene.
         render_cinematic_frame(asset, image_path, W, H)
 
-        title = _escape_filter(asset.get("label", "NEXORA")[:24])
         frames = max(24, int(round(seg_duration * FPS)))
 
+        # The visual engine owns meaning and composition. Do not inject
+        # decorative labels, branding or artificial zooms at the video layer.
         vf = (
             f"scale={W}:{H}:force_original_aspect_ratio=increase,"
             f"crop={W}:{H},"
-            f"zoompan=z='min(zoom+0.0007,1.055)':d={frames}:s={W}x{H}:fps={FPS},"
-            f"fade=t=in:st=0:d=0.35,"
-            f"fade=t=out:st={max(0, seg_duration-0.35):.3f}:d=0.35,"
-            f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{title}':x=54:y=42:fontsize=18:fontcolor=white:alpha=0.70"
+            f"zoompan=z='1.0':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"d={frames}:s={W}x{H}:fps={FPS},"
+            f"fade=t=in:st=0:d=0.25,"
+            f"fade=t=out:st={max(0, seg_duration-0.25):.3f}:d=0.25"
         )
 
         cmd = [
