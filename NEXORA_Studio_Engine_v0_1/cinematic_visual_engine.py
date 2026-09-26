@@ -52,97 +52,82 @@ def node(d,im,x,y,r=42,active=False):
         d.ellipse((x-8,y-8,x+8,y+8),fill=LIME)
 
 def render_cinematic_frame(event,path,w=1280,h=720):
-    kind=event.get("type","concept")
-    world=event.get("world","abstract_system")
+    semantic=event.get("semantic",{})
+    action=semantic.get("action","show")
+    subject=semantic.get("subject","concept")
+    objects=semantic.get("objects",[])
+    relation=semantic.get("relationship","")
+    before=semantic.get("state_before")
+    after=semantic.get("state_after")
+    metaphor=semantic.get("visual_metaphor")
     seq=int(event.get("sequence",0))
     total=max(1,int(event.get("sequence_total",1)))
-    seed=seed_for(event)
-    im=gradient(w,h,seed)
+
+    im=gradient(w,h,seed_for(event))
     d=ImageDraw.Draw(im)
+    cx,cy=w//2,h//2+20
 
-    # Clean cinematic frame: no debug labels, no scene-type captions.
-    for x in range(0,w,128):
-        d.line((x,0,x,h),fill=(17,27,30),width=1)
-    for y in range(0,h,90):
-        d.line((0,y,w,y),fill=(17,27,30),width=1)
+    # No branding or debug text belongs inside a scene.
+    # Draw concrete semantic objects instead of generic "technology" graphics.
+    def card(x,y,ww=190,hh=110,active=False):
+        fill=(19,28,31) if not active else (24,43,37)
+        outline=LIME if active else (73,91,94)
+        d.rounded_rectangle((x-ww//2,y-hh//2,x+ww//2,y+hh//2),18,fill=fill,outline=outline,width=3)
+        d.rectangle((x-ww//2+16,y-hh//2+16,x+ww//2-16,y-hh//2+28),fill=(45,59,62))
+        d.ellipse((x-ww//2+24,y-hh//2+45,x-ww//2+42,y-hh//2+63),fill=LIME if active else (75,93,96))
+        d.line((x-ww//2+52,y-hh//2+54,x+ww//2-24,y-hh//2+54),fill=(92,108,110),width=4)
+        d.line((x-ww//2+24,y-hh//2+78,x+ww//2-45,y-hh//2+78),fill=(62,77,80),width=4)
 
-    glow_dot(im,int(w*.78),int(h*.2),180,LIME,42)
-    glow_dot(im,int(w*.16),int(h*.82),130,(55,120,180),30)
-    d=ImageDraw.Draw(im)
+    def person(x,y,active=False):
+        d.ellipse((x-28,y-110,x+28,y-54),fill=(34,42,44),outline=WHITE,width=2)
+        d.rounded_rectangle((x-55,y-54,x+55,y+105),22,fill=(20,31,34),outline=LIME if active else (70,87,90),width=3)
 
-    cx,cy=w//2,h//2+15
-    # The same visual world evolves from scene to scene.
-    if world in ("technology","data","abstract_system"):
-        if kind == "hook":
-            # Fragmented elements: the visual problem is established.
-            pts=[(250,250),(460,430),(680,220),(900,430),(1100,250)]
-            for x,y in pts:
-                node(d,im,x,y,38,False)
-            d.line((288,250,422,410),fill=(53,72,76),width=3)
-            d.line((498,430,642,235),fill=(53,72,76),width=3)
-            d.line((718,235,862,410),fill=(53,72,76),width=3)
-            d.line((938,410,1062,265),fill=(53,72,76),width=3)
-        elif kind in ("concept","process"):
-            # The fragments begin to organize into a system.
-            pts=[(300,300),(510,220),(510,500),(760,360),(1010,220),(1010,500)]
-            links=[(0,1),(0,3),(1,3),(2,3),(3,4),(3,5)]
-            for a,b in links:
-                x1,y1=pts[a]; x2,y2=pts[b]
-                d.line((x1,y1,x2,y2),fill=(62,87,90),width=4)
-            for j,(x,y) in enumerate(pts):
-                node(d,im,x,y,38,j==3 or j==seq%len(pts))
-        elif kind == "cause_effect":
-            pts=[(250,360),(500,260),(750,360),(1000,260)]
-            for j in range(len(pts)-1):
-                x1,y1=pts[j]; x2,y2=pts[j+1]
-                d.line((x1+45,y1,x2-45,y2),fill=LIME if j==min(seq,2) else (65,88,91),width=6)
-                d.polygon([(x2-55,y2-10),(x2-38,y2),(x2-55,y2+10)],fill=LIME if j==min(seq,2) else (65,88,91))
-            for j,(x,y) in enumerate(pts): node(d,im,x,y,44,j==min(seq,3))
-        elif kind == "contrast":
-            d.rounded_rectangle((120,180,570,570),28,fill=(16,24,27),outline=(68,82,85),width=3)
-            d.rounded_rectangle((710,180,1160,570),28,fill=(19,32,27),outline=LIME,width=3)
-            for y in (270,360,450):
-                d.line((210,y,480,y),fill=(66,82,85),width=12)
-                d.line((800,y,1070,y),fill=LIME,width=12)
-        elif kind == "example":
-            # A simple human-scale scene linked to the system.
-            d.ellipse((cx-44,cy-180,cx+44,cy-92),fill=(25,36,39),outline=WHITE,width=2)
-            d.rounded_rectangle((cx-82,cy-90,cx+82,cy+145),25,fill=(19,31,34),outline=LIME,width=3)
-            for x,y in ((260,300),(1020,300),(260,470),(1020,470)):
-                d.line((x,y,cx-100 if x<cx else cx+100, y),fill=(65,88,91),width=4)
-                node(d,im,x,y,30,True)
-        else:
-            # Resolution: the system is unified.
-            d.ellipse((cx-120,cy-120,cx+120,cy+120),fill=(21,38,34),outline=LIME,width=5)
-            for i in range(8):
-                a=i*math.pi/4
-                x=cx+280*math.cos(a); y=cy+210*math.sin(a)
-                d.line((x,y,cx+110*math.cos(a),cy+110*math.sin(a)),fill=LIME,width=5)
-                node(d,im,int(x),int(y),28,True)
-            for r in (170,220,270):
-                d.arc((cx-r,cy-r,cx+r,cy+r),210,330,fill=(58,80,83),width=3)
-    elif world=="human_system":
-        # Persistent human + surrounding system.
-        head=(cx,cy-150); body=(cx,cy+50)
-        d.ellipse((head[0]-48,head[1]-48,head[0]+48,head[1]+48),fill=(25,36,39),outline=WHITE,width=2)
-        d.rounded_rectangle((body[0]-95,body[1]-100,body[0]+95,body[1]+130),28,fill=(19,31,34),outline=LIME,width=3)
-        for a in range(6):
-            ang=a*math.pi/3
-            x=cx+330*math.cos(ang); y=cy+220*math.sin(ang)
-            node(d,im,int(x),int(y),34,a<=seq%6)
-            d.line((x,y,cx,body[1]),fill=(58,82,85),width=3)
+    def arrow(x1,y1,x2,y2,active=True):
+        col=LIME if active else (71,91,94)
+        d.line((x1,y1,x2,y2),fill=col,width=7)
+        ang=math.atan2(y2-y1,x2-x1)
+        p1=(x2-20*math.cos(ang-0.5),y2-20*math.sin(ang-0.5))
+        p2=(x2-20*math.cos(ang+0.5),y2-20*math.sin(ang+0.5))
+        d.polygon([(x2,y2),p1,p2],fill=col)
+
+    if subject=="person" or action in ("switch","automate"):
+        person(170,cy,active=action=="automate")
+
+    if "tools" in objects or "tool" in objects or "AI tools" in objects:
+        positions=[(430,210),(650,cy),(430,510)]
+        for j,(x,y) in enumerate(positions):
+            card(x,y,190,105,active=(action=="connect" and j==min(seq,2)))
+        if action=="switch":
+            arrow(270,cy,330,210,True); arrow(270,cy,330,cy,True); arrow(270,cy,330,510,True)
+        elif before=="tools isolated" or action=="communicate":
+            # Explicitly show separation/no communication.
+            for x,y in positions:
+                d.ellipse((x-112,y-67,x+112,y+67),outline=(47,58,61),width=2)
+        elif action in ("connect","automate","decide"):
+            # A central agent is the actual relationship described by the narration.
+            card(870,cy,220,130,active=True)
+            for x,y in positions:
+                arrow(x+105,y,755,cy,True)
+            if action in ("automate","decide"):
+                arrow(980,cy,1120,cy,True)
+
+    elif subject=="AI agent" or "AI agent" in objects:
+        card(cx,cy,230,140,active=True)
+
+    elif metaphor=="before_after":
+        d.rounded_rectangle((100,170,560,570),28,fill=(15,22,25),outline=(72,87,90),width=3)
+        d.rounded_rectangle((720,170,1180,570),28,fill=(18,32,27),outline=LIME,width=3)
+        arrow(570,cy,710,cy,True)
+    elif metaphor=="cause_effect":
+        card(250,cy,220,125,False); card(640,cy,220,125,True); card(1030,cy,220,125,True)
+        arrow(365,cy,525,cy,True); arrow(755,cy,915,cy,True)
     else:
-        # Abstract system: a coherent transformation across scenes.
-        progress=seq/max(1,total-1)
-        r=90+int(180*progress)
-        d.ellipse((cx-r,cy-r,cx+r,cy+r),outline=LIME,width=5)
-        for i in range(12):
-            a=i*math.pi/6+progress
-            x=cx+(r+80)*math.cos(a); y=cy+(r+55)*math.sin(a)
-            node(d,im,int(x),int(y),24,i<=int(progress*11))
-            d.line((x,y,cx+r*math.cos(a),cy+r*math.sin(a)),fill=(58,82,85),width=3)
+        # Fallback is intentionally literal and restrained, not decorative circles.
+        d.rounded_rectangle((cx-250,cy-130,cx+250,cy+130),28,fill=(17,27,30),outline=(71,90,93),width=3)
+        d.line((cx-170,cy,cx+170,cy),fill=LIME,width=7)
+        d.polygon([(cx+170,cy-14),(cx+200,cy),(cx+170,cy+14)],fill=LIME)
 
-
+    # subtle background, no logos, labels or arbitrary technical overlays
     path=Path(path)
     path.parent.mkdir(parents=True,exist_ok=True)
     im.save(path,"PNG")
