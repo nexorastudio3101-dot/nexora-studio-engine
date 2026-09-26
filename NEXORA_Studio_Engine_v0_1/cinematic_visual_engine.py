@@ -142,8 +142,6 @@ def render_cinematic_frame(event,path,w=1280,h=720):
             node(d,im,int(x),int(y),24,i<=int(progress*11))
             d.line((x,y,cx+r*math.cos(a),cy+r*math.sin(a)),fill=(58,82,85),width=3)
 
-    # Minimal brand mark only; no debug metadata or scene labels.
-    d.text((42,34),"NEXORA",font=font(18,True),fill=LIME)
 
     path=Path(path)
     path.parent.mkdir(parents=True,exist_ok=True)
