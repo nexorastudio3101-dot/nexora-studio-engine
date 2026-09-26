@@ -21,7 +21,7 @@ def page():
     elif s["output"]:
         msg=f'<div class="ok">✓ Video ready — <a href="/download">Download MP4</a></div>'
     return f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NEXUS Studio Engine</title>
+<title>NEXORA Studio Engine</title>
 <style>
 :root{{--bg:#080a0b;--panel:#101415;--line:#273033;--text:#f5f7f6;--muted:#8e989a;--lime:#b9f33d}}
 *{{box-sizing:border-box}}body{{margin:0;background:radial-gradient(circle at 85% 0,#1a2418,transparent 32%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}}
@@ -33,7 +33,7 @@ input[type=file]{{width:100%;color:var(--muted)}}button{{width:100%;padding:15px
 .ok,.error{{margin-top:16px;padding:13px;border-radius:10px;font-size:13px}}.ok{{background:#121b10;border:1px solid #31472a}}.ok a{{color:var(--lime)}}.error{{background:#241515;border:1px solid #603030;color:#ffc0c0}}
 .note{{font-size:11px;color:var(--muted);line-height:1.45;margin-top:12px}}.foot{{margin-top:22px;font-size:10px;color:var(--muted);letter-spacing:.12em}}
 </style></head><body><main class="wrap">
-<div class="brand">NEXUS STUDIO ENGINE</div><div class="tag">TURN KNOWLEDGE INTO VISUAL STORIES.</div>
+<div class="brand">NEXORA STUDIO ENGINE</div><div class="tag">TURN KNOWLEDGE INTO VISUAL STORIES.</div>
 <form method="post" enctype="multipart/form-data" action="/generate">
 <div class="card"><div class="label">NARRATION AUDIO</div><div class="hint">Upload the narration audio for the video.</div><input name="audio" type="file" accept="audio/*" required></div>
 <div class="card"><div class="label">SCRIPT</div><div class="hint">Paste the exact narration. The AI Director uses this to decide what should be shown.</div>
@@ -43,8 +43,16 @@ input[type=file]{{width:100%;color:var(--muted)}}button{{width:100%;padding:15px
 <button type="submit" {"disabled" if busy else ""}>GENERATE VIDEO</button></form>
 <div class="status">{html.escape(s["status"])}</div><div class="stage">{html.escape(s["stage"])}</div>
 <div class="bar"><div class="fill"></div></div>{msg}
-<div class="foot">16:9 • AI DIRECTOR • NEXUS STUDIO ENGINE</div>
-<script>setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{{if(s.status!=="Ready"||s.output||s.error)location.reload()}}),1200)</script>
+<div class="foot">16:9 • AI DIRECTOR • NEXORA STUDIO ENGINE</div>
+<script>
+let lastStatus="";
+setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{
+  const terminal=(s.status==="Ready"||s.status==="✓ Complete"||s.status==="⚠ Generation stopped");
+  if(!terminal && s.status!==lastStatus) location.reload();
+  if(s.status==="✓ Complete" && !s.error && s.output) location.reload();
+  lastStatus=s.status;
+}).catch(()=>{}),1200);
+</script>
 </main></body></html>"""
 
 def multipart(rfile,length,boundary):
@@ -65,7 +73,7 @@ def duration_of(audio):
 
 def unique_output():
     stamp=int(time.time())
-    return OUTPUT/f"NEXUS_video_{stamp}.mp4"
+    return OUTPUT/f"NEXORA_video_{stamp}.mp4"
 
 def worker(audio,script,out):
     try:
@@ -76,7 +84,7 @@ def worker(audio,script,out):
         STATE["storyboard"]=storyboard
         STATE.update(status="Designing visuals…",progress=.25,stage=f"Planning {len(events)} semantic scenes")
 
-        work=Path(tempfile.mkdtemp(prefix="nexus_assets_"))
+        work=Path(tempfile.mkdtemp(prefix="nexora_assets_"))
         try:
             images=[]
             for i,e in enumerate(events):
@@ -120,7 +128,7 @@ class Handler(BaseHTTPRequestHandler):
         name,audio_bytes=parts["audio"]; _,script_bytes=parts["script"]
         script_text=script_bytes.decode("utf-8","replace").strip()
         if not script_text: return self.send(400,"Script is empty.")
-        work=Path(tempfile.mkdtemp(prefix="nexus_upload_"))
+        work=Path(tempfile.mkdtemp(prefix="nexora_upload_"))
         audio=work/(Path(name).name or "narration.wav"); audio.write_bytes(audio_bytes)
         script=work/"script.txt"; script.write_text(script_text,encoding="utf-8")
         out=unique_output()
