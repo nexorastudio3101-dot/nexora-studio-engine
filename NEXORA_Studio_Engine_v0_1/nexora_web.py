@@ -23,9 +23,9 @@ def page():
  if st['error']: msg='<div class="error">'+html.escape(st['error'])+'</div>'
  elif st['output']: msg='<div class="success">✓ Video ready — <a href="/download">Download MP4</a></div>'
  h=HTML_HEAD.replace('VAR_PROGRESS',str(int(st['progress']*100)))
- ai_available=bool(os.environ.get('RUNWAYML_API_SECRET'))
- ai_note='AI Visual Mode available' if ai_available else 'Add RUNWAYML_API_SECRET in Render to enable AI Visual Mode'
- body='''<body><main class="wrap"><div class="brand">NEXORA STUDIO ENGINE</div><div class="tag">SMARTER TODAY. BRIGHTER TOMORROW.</div><div class="modes"><div class="mode active">ACADEMY</div><div class="mode">YOUTUBE</div><div class="mode">SHORTS</div></div><form method="post" enctype="multipart/form-data" action="/generate"><div class="card"><div class="title">VOICE / AUDIO</div><div class="hint">Select your narration audio</div><input name="audio" type="file" accept="audio/*" required></div><div class="card"><div class="title">SCRIPT</div><div class="hint">Paste the narration directly — no .txt file needed</div><textarea name="script" required placeholder="Paste your full narration here..."></textarea><label class="ai"><input name="ai" type="checkbox" AI_CHECKED><span><strong>AI CINEMATIC VISUALS</strong><small>AI-generated scenes + cinematic motion. '''+html.escape(ai_note)+'''</small></span></label></div><button type="submit" DISABLED>✨ &nbsp; GENERATE ACADEMY VIDEO</button></form><div class="status">STATUS_TEXT</div><div class="sub">STAGE_TEXT</div><div class="bar"><div class="fill"></div></div>MSG<div class="foot">ACADEMY • 16:9 • NEXORA VISUAL SYSTEM • AI STORY DIRECTOR</div></main><script>setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{if(s.status!=='Ready'||s.output||s.error) location.reload()}),1200)</script></body></html>'''
+ ai_available=True
+ ai_note='Zero-cost NEXORA cinematic visual engine — no API key or credits required'
+ body='''<body><main class="wrap"><div class="brand">NEXORA STUDIO ENGINE</div><div class="tag">SMARTER TODAY. BRIGHTER TOMORROW.</div><div class="modes"><div class="mode active">ACADEMY</div><div class="mode">YOUTUBE</div><div class="mode">SHORTS</div></div><form method="post" enctype="multipart/form-data" action="/generate"><div class="card"><div class="title">VOICE / AUDIO</div><div class="hint">Select your narration audio</div><input name="audio" type="file" accept="audio/*" required></div><div class="card"><div class="title">SCRIPT</div><div class="hint">Paste the narration directly — no .txt file needed</div><textarea name="script" required placeholder="Paste your full narration here..."></textarea><label class="ai"><input name="ai" type="checkbox" AI_CHECKED><span><strong>AI CINEMATIC VISUALS</strong><small>Procedural cinematic scenes + intelligent motion. '''+html.escape(ai_note)+'''</small></span></label></div><button type="submit" DISABLED>✨ &nbsp; GENERATE ACADEMY VIDEO</button></form><div class="status">STATUS_TEXT</div><div class="sub">STAGE_TEXT</div><div class="bar"><div class="fill"></div></div>MSG<div class="foot">ACADEMY • 16:9 • NEXORA VISUAL SYSTEM • AI STORY DIRECTOR</div></main><script>setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{if(s.status!=='Ready'||s.output||s.error) location.reload()}),1200)</script></body></html>'''
  body=body.replace('AI_CHECKED',' checked' if ai_available else '').replace('DISABLED','disabled' if disabled else '').replace('STATUS_TEXT',html.escape(st['status'])).replace('STAGE_TEXT',html.escape(st.get('stage',''))).replace('MSG',msg)
  return h+body
 
@@ -106,10 +106,8 @@ class Handler(BaseHTTPRequestHandler):
   if 'audio' not in parts or 'script' not in parts: return self.send(400,'Please select audio and paste the script.')
   aname,abytes=parts['audio']; _,sbytes=parts['script']; _,ai_bytes=parts.get('ai',('',b''))
   script_text=sbytes.decode('utf-8','replace').strip()
-  use_ai=bool(ai_bytes) and bool(os.environ.get('RUNWAYML_API_SECRET'))
+  use_ai=bool(ai_bytes)
   if not script_text: return self.send(400,'Please paste the script.')
-  if ai_bytes and not os.environ.get('RUNWAYML_API_SECRET'):
-   return self.send(400,'AI Visual Mode is selected, but RUNWAYML_API_SECRET is not configured in Render.')
   work=Path(tempfile.mkdtemp(prefix='nexora_upload_')); audio=work/(Path(aname).name or 'voice.wav'); script=work/'script.txt'; audio.write_bytes(abytes); script.write_text(script_text,encoding='utf-8')
   out=unique_output(script.stem); STATE.update(status='Starting…',progress=.03,error='',output='',stage='Preparing the project')
   threading.Thread(target=run_pipeline,args=(audio,script,out,use_ai),daemon=True).start()
