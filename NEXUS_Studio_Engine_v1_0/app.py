@@ -46,10 +46,10 @@ input[type=file]{{width:100%;color:var(--muted)}}button{{width:100%;padding:15px
 <div class="foot">16:9 • AI DIRECTOR • NEXORA STUDIO ENGINE</div>
 <script>
 let lastStatus=null;
-setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{
+setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{{
   if(lastStatus!==null && s.status!==lastStatus) location.reload();
   lastStatus=s.status;
-}).catch(()=>{}),1200);
+}}).catch(()=>{{}}),1200);
 </script>
 </main></body></html>"""
 
