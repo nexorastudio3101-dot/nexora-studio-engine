@@ -45,11 +45,9 @@ input[type=file]{{width:100%;color:var(--muted)}}button{{width:100%;padding:15px
 <div class="bar"><div class="fill"></div></div>{msg}
 <div class="foot">16:9 • AI DIRECTOR • NEXORA STUDIO ENGINE</div>
 <script>
-let lastStatus="";
+let lastStatus=null;
 setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{
-  const terminal=(s.status==="Ready"||s.status==="✓ Complete"||s.status==="⚠ Generation stopped");
-  if(!terminal && s.status!==lastStatus) location.reload();
-  if(s.status==="✓ Complete" && !s.error && s.output) location.reload();
+  if(lastStatus!==null && s.status!==lastStatus) location.reload();
   lastStatus=s.status;
 }).catch(()=>{}),1200);
 </script>
