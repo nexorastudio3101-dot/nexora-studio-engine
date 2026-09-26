@@ -25,7 +25,7 @@ def page():
  h=HTML_HEAD.replace('VAR_PROGRESS',str(int(st['progress']*100)))
  ai_available=True
  ai_note='Zero-cost NEXORA cinematic visual engine — no API key or credits required'
- body='''<body><main class="wrap"><div class="brand">NEXORA STUDIO ENGINE</div><div class="tag">SMARTER TODAY. BRIGHTER TOMORROW.</div><div class="modes"><div class="mode active">ACADEMY</div><div class="mode">YOUTUBE</div><div class="mode">SHORTS</div></div><form method="post" enctype="multipart/form-data" action="/generate"><div class="card"><div class="title">VOICE / AUDIO</div><div class="hint">Select your narration audio</div><input name="audio" type="file" accept="audio/*" required></div><div class="card"><div class="title">SCRIPT</div><div class="hint">Paste the narration directly — no .txt file needed</div><textarea name="script" required placeholder="Paste your full narration here..."></textarea><label class="ai"><input name="ai" type="checkbox" AI_CHECKED><span><strong>AI CINEMATIC VISUALS</strong><small>Procedural cinematic scenes + intelligent motion. '''+html.escape(ai_note)+'''</small></span></label></div><button type="submit" DISABLED>✨ &nbsp; GENERATE ACADEMY VIDEO</button></form><div class="status">STATUS_TEXT</div><div class="sub">STAGE_TEXT</div><div class="bar"><div class="fill"></div></div>MSG<div class="foot">ACADEMY • 16:9 • NEXORA VISUAL SYSTEM • AI STORY DIRECTOR</div></main><script>setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{if(s.status!=='Ready'||s.output||s.error) location.reload()}),1200)</script></body></html>'''
+ body='''<body><main class="wrap"><div class="brand">NEXORA STUDIO ENGINE</div><div class="tag">SMARTER TODAY. BRIGHTER TOMORROW.</div><div class="modes"><div class="mode active">ACADEMY</div><div class="mode">YOUTUBE</div><div class="mode">SHORTS</div></div><form method="post" enctype="multipart/form-data" action="/generate"><div class="card"><div class="title">VOICE / AUDIO</div><div class="hint">Select your narration audio</div><input name="audio" type="file" accept="audio/*" required></div><div class="card"><div class="title">SCRIPT</div><div class="hint">Paste the narration directly — no .txt file needed</div><textarea name="script" required placeholder="Paste your full narration here..."></textarea><label class="ai"><input name="ai" type="checkbox" AI_CHECKED><span><strong>CINEMATIC STORY VISUALS</strong><small>Visuals are planned from the meaning of the narration. '''+html.escape(ai_note)+'''</small></span></label></div><button type="submit" DISABLED>✨ &nbsp; GENERATE ACADEMY VIDEO</button></form><div class="status">STATUS_TEXT</div><div class="sub">STAGE_TEXT</div><div class="bar"><div class="fill"></div></div>MSG<div class="foot">ACADEMY • 16:9 • NEXORA Studio</div></main><script>setInterval(()=>fetch('/status').then(r=>r.json()).then(s=>{if(s.status!=='Ready'||s.output||s.error) location.reload()}),1200)</script></body></html>'''
  body=body.replace('AI_CHECKED',' checked' if ai_available else '').replace('DISABLED','disabled' if disabled else '').replace('STATUS_TEXT',html.escape(st['status'])).replace('STAGE_TEXT',html.escape(st.get('stage',''))).replace('MSG',msg)
  return h+body
 
@@ -45,7 +45,7 @@ def run_cmd(cmd,timeout=None):
 def run_pipeline(audio,script,out,use_ai):
  try:
   if use_ai:
-   STATE.update(status='AI storyboarding…',progress=.08,stage='Turning the narration into a cinematic scene plan',error='',output='')
+   STATE.update(status='Storyboarding…',progress=.08,stage='Interpreting the narration and mapping meaning to visuals',error='',output='')
   else:
    STATE.update(status='Preparing audio…',progress=.10,stage='Reading narration and creating timings',error='',output='')
   director=engine_file('scene_director.py'); pipeline=engine_file('pipeline.py')
@@ -70,7 +70,7 @@ def run_pipeline(audio,script,out,use_ai):
   cmd=[str(PYTHON),str(director),'--alignment',str(alignment),'--script',str(script),'--output',str(directed),'--max-scenes',str(max_scenes)]
   r=run_cmd(cmd,timeout=120)
   if r.returncode: raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'Scene Director failed.')
-  STATE.update(status='Generating visuals…' if use_ai else 'Rendering visuals…',progress=.35,stage='AI scene generation and cinematic composition' if use_ai else 'Rendering local visual scenes')
+  STATE.update(status='Generating visuals…' if use_ai else 'Rendering visuals…',progress=.35,stage='Rendering meaning-driven visual scenes' if use_ai else 'Rendering local visual scenes')
   cmd=[str(PYTHON),str(pipeline),'--audio',str(audio),'--script',str(script),'--manifest',str(directed),'--output',str(out)]
   if use_ai: cmd.append('--ai')
   r=run_cmd(cmd,timeout=3600 if use_ai else 1200)
