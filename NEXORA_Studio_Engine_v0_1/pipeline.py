@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -17,24 +16,14 @@ from scene_renderer import render_scene
 
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
-W, H, FPS = 1920, 1080, 24
-ROOT = Path(__file__).resolve().parent
+
+# Cloud-safe render profile: 720p keeps the cinematic composition while
+# avoiding the CPU-heavy 1080p/24fps encode that can stall a free instance.
+W, H, FPS = 1280, 720, 24
 
 
 def run(cmd, timeout=None):
     subprocess.run(cmd, check=True, timeout=timeout)
-
-
-def duration(p):
-    return float(
-        subprocess.check_output(
-            [
-                FFPROBE, "-v", "error", "-show_entries", "format=duration",
-                "-of", "default=nw=1:nk=1", str(p)
-            ],
-            text=True,
-        ).strip()
-    )
 
 
 def _escape_filter(value: str) -> str:
@@ -49,14 +38,16 @@ def render_cinematic_visual(events, out_dir, visual_out):
     segments = []
 
     for i, asset in enumerate(events):
-        start = float(asset["start"])
-        end = float(asset["end"])
-        seg_duration = max(0.25, end - start)
+        seg_duration = max(0.25, float(asset["end"]) - float(asset["start"]))
         seg = out_dir / f"cinematic_segment_{i:02d}.mp4"
         image_path = assets_dir / f"scene_{i:03d}.png"
+
+        # Generate one polished keyframe per directed scene.
         render_cinematic_frame(asset, image_path, W, H)
+
         title = _escape_filter(asset.get("label", "NEXORA")[:24])
         frames = max(24, int(round(seg_duration * FPS)))
+
         vf = (
             f"scale={W}:{H}:force_original_aspect_ratio=increase,"
             f"crop={W}:{H},"
@@ -64,29 +55,42 @@ def render_cinematic_visual(events, out_dir, visual_out):
             f"fade=t=in:st=0:d=0.35,"
             f"fade=t=out:st={max(0, seg_duration-0.35):.3f}:d=0.35,"
             f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{title}':x=80:y=65:fontsize=22:fontcolor=white:alpha=0.72"
+            f"text='{title}':x=54:y=42:fontsize=18:fontcolor=white:alpha=0.70"
         )
+
         cmd = [
-            FFMPEG,"-y","-loglevel","error","-loop","1","-i",str(image_path),
-            "-t",f"{seg_duration:.3f}","-vf",vf,"-r",str(FPS),
-            "-c:v","libx264","-preset","veryfast","-crf","20",
-            "-pix_fmt","yuv420p",str(seg)
+            FFMPEG, "-y", "-loglevel", "error",
+            "-loop", "1", "-i", str(image_path),
+            "-t", f"{seg_duration:.3f}",
+            "-vf", vf,
+            "-r", str(FPS),
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "21",
+            "-pix_fmt", "yuv420p",
+            str(seg),
         ]
-        run(cmd, timeout=max(90, int(seg_duration*12)))
+
+        # Keep each scene bounded, but give short cloud renders enough time.
+        run(cmd, timeout=max(60, int(seg_duration * 8)))
         segments.append(seg)
 
-    concat = out_dir / "ai_concat.txt"
+    if not segments:
+        raise RuntimeError("Cinematic renderer produced no scene segments.")
+
+    concat = out_dir / "cinematic_concat.txt"
     concat.write_text(
         "".join(f"file '{p.as_posix()}'\n" for p in segments),
         encoding="utf-8",
     )
+
     run(
         [
             FFMPEG, "-y", "-loglevel", "error",
             "-f", "concat", "-safe", "0", "-i", str(concat),
             "-c", "copy", "-movflags", "+faststart", str(visual_out),
         ],
-        timeout=180,
+        timeout=120,
     )
     return visual_out
 
@@ -96,6 +100,7 @@ def make_sfx(duration_seconds, events, path):
     sr = 48000
     n = max(1, int(duration_seconds * sr))
     y = np.zeros(n, dtype=np.float32)
+
     for e in events:
         idx = int(float(e["start"]) * sr)
         length = min(int(0.14 * sr), n - idx)
@@ -107,12 +112,11 @@ def make_sfx(duration_seconds, events, path):
             + 0.010 * np.sin(2 * np.pi * 1174 * u)
         ) * np.exp(-28 * u)
         y[idx:idx + length] += tone
+
     sf.write(path, y, sr, subtype="PCM_16")
 
 
 def make_music(duration_seconds, path):
-    # Very quiet harmonic bed. It is intentionally subtle so the narration
-    # remains dominant and the AI visuals carry the production value.
     run(
         [
             FFMPEG, "-y", "-loglevel", "error",
@@ -142,6 +146,7 @@ def mux_audio(video, audio, sfx, music, output, video_duration):
         "[v][s][m]amix=inputs=3:duration=first:normalize=0,"
         "alimiter=limit=0.95[a]"
     )
+
     run(
         [
             FFMPEG, "-y", "-loglevel", "error",
@@ -152,7 +157,9 @@ def mux_audio(video, audio, sfx, music, output, video_duration):
         ],
         timeout=180,
     )
+
     output.parent.mkdir(parents=True, exist_ok=True)
+
     run(
         [
             FFMPEG, "-y", "-loglevel", "error",
@@ -166,33 +173,42 @@ def mux_audio(video, audio, sfx, music, output, video_duration):
 
 
 def render_static_visual(events, visual_out):
-    # Backward-compatible local fallback when AI mode is not selected.
     tmp = visual_out.parent / "static_visual"
     tmp.mkdir(parents=True, exist_ok=True)
     segments = []
+
     for i, e in enumerate(events):
         scene = e.get("scene") or e.get("type") or "concept"
         if scene == "hold":
             scene = "concept"
+
         image = render_scene(scene, e, 0).convert("RGB")
         image_path = tmp / f"scene_{i:03d}.jpg"
-        image.resize((W, H), Image.Resampling.LANCZOS).save(image_path, "JPEG", quality=82)
+        image.resize((W, H), Image.Resampling.LANCZOS).save(
+            image_path, "JPEG", quality=82
+        )
+
         seg = tmp / f"seg_{i:03d}.mp4"
         d = max(0.25, float(e["end"]) - float(e["start"]))
+
         run([
             FFMPEG, "-y", "-loglevel", "error",
             "-loop", "1", "-i", str(image_path), "-t", str(d),
-            "-vf", f"scale={W}:{H},zoompan=z='min(zoom+0.0006,1.04)':d={max(1,int(d*FPS))}:s={W}x{H}:fps={FPS}",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            "-vf",
+            f"scale={W}:{H},zoompan=z='min(zoom+0.0006,1.04)':"
+            f"d={max(1,int(d*FPS))}:s={W}x{H}:fps={FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-pix_fmt", "yuv420p", str(seg),
-        ], timeout=max(60, int(d*10)))
+        ], timeout=max(60, int(d*8)))
         segments.append(seg)
+
     concat = tmp / "concat.txt"
     concat.write_text("".join(f"file '{p.as_posix()}'\n" for p in segments))
     run([
         FFMPEG, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
-        "-i", str(concat), "-c", "copy", "-movflags", "+faststart", str(visual_out)
-    ], timeout=180)
+        "-i", str(concat), "-c", "copy", "-movflags", "+faststart",
+        str(visual_out)
+    ], timeout=120)
 
 
 def main():
@@ -223,10 +239,12 @@ def main():
         )
         events = directed["events"]
         video_duration = float(directed["duration"])
+
         if not events:
             raise RuntimeError("No visual events available.")
 
         visual = work / "visual.mp4"
+
         if args.ai:
             render_cinematic_visual(events, work, visual)
         else:
@@ -237,6 +255,7 @@ def main():
         make_sfx(video_duration, events, sfx)
         make_music(video_duration, music)
         mux_audio(visual, audio, sfx, music, out, video_duration)
+
         print(out, flush=True)
     finally:
         shutil.rmtree(work, ignore_errors=True)
