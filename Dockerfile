@@ -1,9 +1,7 @@
-FROM python:3.11-slim
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu && rm -rf /var/lib/apt/lists/*
+FROM node:22-alpine
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
+COPY package.json ./
+COPY src ./src
+COPY public ./public
 EXPOSE 10000
-CMD ["python","NEXUS_Studio_Engine_v1_0/app.py"]
+CMD ["node","src/server.mjs"]
