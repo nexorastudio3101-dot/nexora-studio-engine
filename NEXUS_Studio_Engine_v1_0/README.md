@@ -1,4 +1,4 @@
-# NEXUS Studio Engine v1.0
+# NEVORA Studio Engine v1.0
 
 Clean rebuild of the video-generation engine.
 
@@ -17,8 +17,8 @@ Environment variable:
 GEMINI_API_KEY
 
 Optional model overrides:
-NEXUS_TEXT_MODEL=gemini-3.8-flash
-NEXUS_IMAGE_MODEL=gemini-3.1-flash-image
+NEVORA_TEXT_MODEL=gemini-3.8-flash
+NEVORA_IMAGE_MODEL=gemini-3.1-flash-image
 
 If the API key is absent, visual generation stops with a clear configuration error instead of silently generating meaningless placeholder graphics.
 
@@ -33,6 +33,6 @@ The AI Director decides what the viewer should see before the image model is cal
 ## Render
 
 The Docker container starts:
-python NEXUS_Studio_Engine_v1_0/app.py
+python NEVORA_Studio_Engine_v1_0/app.py
 
 Render should point to the repository's main branch with automatic deploy enabled.
