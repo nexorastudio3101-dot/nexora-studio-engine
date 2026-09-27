@@ -9,7 +9,7 @@ except Exception:
     genai=None
     types=None
 
-MODEL=os.getenv("NEXUS_IMAGE_MODEL","gemini-3.1-flash-image")
+MODEL=os.getenv("NEVORA_IMAGE_MODEL","gemini-3.1-flash-image")
 
 def generate_image(prompt: str, output: Path, continuity: str = ""):
     key=os.getenv("GEMINI_API_KEY")
