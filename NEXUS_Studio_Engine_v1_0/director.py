@@ -9,9 +9,9 @@ except Exception:
     genai = None
     types = None
 
-MODEL = os.getenv("NEXUS_TEXT_MODEL", "gemini-3.8-flash")
+MODEL = os.getenv("NEVORA_TEXT_MODEL", "gemini-3.8-flash")
 
-SYSTEM = """You are the NEXUS Studio Engine AI Director.
+SYSTEM = """You are the NEVORA Studio Engine AI Director.
 Your job is to turn educational narration into a coherent visual storyboard.
 You are NOT a keyword classifier and you must never invent generic circles, nodes,
 particles or abstract tech graphics unless the narration genuinely requires them.
